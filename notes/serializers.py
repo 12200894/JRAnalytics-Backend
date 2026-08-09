@@ -4,6 +4,7 @@ from .models import AISummary, Attachment, HealthNote
 
 # Required fields per note template. Free-form notes have none.
 TEMPLATE_FIELDS = {
+    HealthNote.Type.VITALS: ["heart_rate", "blood_pressure", "spo2", "temperature"],
     HealthNote.Type.SYMPTOM: ["severity", "duration", "triggers"],
     HealthNote.Type.MEDICATION: ["medication", "dose", "frequency"],
     HealthNote.Type.APPOINTMENT: ["clinician", "date", "outcome"],
