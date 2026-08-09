@@ -1,9 +1,4 @@
-"""
-Health notes, attachments and AI summaries.
 
-Mirrors the class diagram from ICT728: one User has many HealthNotes; a HealthNote
-has many Attachments; an AISummary is generated from one or more HealthNotes.
-"""
 
 from django.conf import settings
 from django.db import models
@@ -29,6 +24,8 @@ class HealthNote(models.Model):
     fields = models.JSONField(default=dict, blank=True)
 
     tags = models.JSONField(default=list, blank=True)
+
+    is_favourite = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
