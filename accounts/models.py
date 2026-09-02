@@ -5,6 +5,10 @@ Django's default User requires a username. Health apps identify people by email,
 and swapping this later means a painful migration, so it is done up front.
 """
 
+import random
+from datetime import timedelta
+
+from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.utils import timezone
@@ -54,3 +58,31 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+
+class PasswordResetCode(models.Model):
+    """
+    A short-lived 6-digit code emailed to the user for the 'forgot password' flow.
+
+    Deliberately not a long opaque token: this is a mobile app, so the user has to
+    type the code in by hand rather than tap a link. Expires after
+    PASSWORD_RESET_TIMEOUT_MINUTES and can only be used once.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reset_codes")
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    used = models.BooleanField(default=False)
+
+    @staticmethod
+    def generate_code():
+        return f"{random.randint(0, 999999):06d}"
+
+    def is_valid(self):
+        if self.used:
+            return False
+        age = timezone.now() - self.created_at
+        return age < timedelta(minutes=settings.PASSWORD_RESET_TIMEOUT_MINUTES)
+
+    def __str__(self):
+        return f"reset code for {self.user.email} ({'used' if self.used else 'active'})"

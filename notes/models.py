@@ -8,6 +8,7 @@ class HealthNote(models.Model):
     """A single health record entry, free-form or against a template."""
 
     class Type(models.TextChoices):
+        VITALS = "vitals", "Vitals"
         FREE = "free", "Free-form"
         SYMPTOM = "symptom", "Symptom"
         MEDICATION = "medication", "Medication"

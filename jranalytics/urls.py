@@ -6,6 +6,10 @@ JR Analytics API routes.
     /api/v1/auth/login/              obtain a JWT pair
     /api/v1/auth/refresh/            exchange a refresh token for a new access token
     /api/v1/auth/me/                 read / update the signed-in profile
+    /api/v1/auth/change-password/    change the signed-in user's password
+    /api/v1/auth/me/delete/          permanently delete the signed-in account
+    /api/v1/auth/password-reset/           request a reset code by email (no login needed)
+    /api/v1/auth/password-reset/confirm/   submit the code + new password (no login needed)
     /api/v1/notes/                   health notes CRUD
     /api/v1/summaries/               past AI summaries
     /api/v1/summaries/generate/      generate a new summary via the LLM service
@@ -19,7 +23,8 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from accounts.views import ProfileView, RegisterView
+from accounts.views import (ChangePasswordView, DeleteAccountView, PasswordResetConfirmView,
+                             PasswordResetRequestView, ProfileView, RegisterView)
 from notes.views import AISummaryViewSet, HealthNoteViewSet, llm_status
 
 router = DefaultRouter()
@@ -33,6 +38,10 @@ urlpatterns = [
     path("api/v1/auth/login/", TokenObtainPairView.as_view(), name="login"),
     path("api/v1/auth/refresh/", TokenRefreshView.as_view(), name="refresh"),
     path("api/v1/auth/me/", ProfileView.as_view(), name="profile"),
+    path("api/v1/auth/change-password/", ChangePasswordView.as_view(), name="change-password"),
+    path("api/v1/auth/me/delete/", DeleteAccountView.as_view(), name="delete-account"),
+    path("api/v1/auth/password-reset/", PasswordResetRequestView.as_view(), name="password-reset"),
+    path("api/v1/auth/password-reset/confirm/", PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
 
     path("api/v1/llm/status/", llm_status, name="llm-status"),
     path("api/v1/", include(router.urls)),
