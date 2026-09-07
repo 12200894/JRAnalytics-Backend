@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 
 from django.utils import timezone
@@ -90,39 +91,95 @@ def render_note_log(user, notes, period):
 
     The model expects header lines, then 'log:', then 'day NN | ...' rows, then a
     closing 'summary' line which triggers generation.
+
+    Integration fix (7 Sept): the first version emitted one 'day' row per *note* and
+    ignored every vitals field, so the model received lines like
+    'day 01 | symptoms hypertension' with no numbers at all — and invented them.
+    Now notes are grouped by calendar day and rendered with the exact tokens the
+    model's parser understands (bp_am, hr, spo2, temp, symptoms, meds NAME=Y), so
+    the rule-based daily lines are accurate and the model has real values to cite.
     """
+    window_days = PERIOD_DAYS[period]
+
     conditions, medications = set(), set()
     for n in notes:
         if n.note_type == HealthNote.Type.MEDICATION:
-            medications.add(n.fields.get("medication", n.title))
-        conditions.update(n.tags)
+            medications.add(_med_name(n))
+        conditions.update(t.strip().lower() for t in (n.tags or []) if t and t.strip())
 
     age = ""
     if user.date_of_birth:
         age = str((timezone.now().date() - user.date_of_birth).days // 365)
 
+    # Group by local calendar day so several notes on one day become one log row.
+    by_day = {}
+    for n in notes:
+        by_day.setdefault(timezone.localtime(n.created_at).date(), []).append(n)
+    days = sorted(by_day)
+
     lines = [
-        "patient Female" if False else "patient Male",   # extend when gender is captured
+        "patient Male",   # extend when gender is captured
         f"age {age or 'unknown'}",
         f"conditions {', '.join(sorted(conditions)) or 'unspecified'}",
         f"prescribed {', '.join(sorted(medications)) or 'none'}",
-        f"monitoring window {PERIOD_DAYS[period]} days",
-        f"entries logged {len(notes)} of {PERIOD_DAYS[period]} days",
+        f"monitoring window {window_days} days",
+        f"entries logged {len(days)} of {window_days} days",
         "log:",
     ]
 
-    for i, n in enumerate(sorted(notes, key=lambda x: x.created_at), start=1):
-        parts = [f"day {i:02d}"]
-        f = n.fields or {}
-        if f.get("severity"):
-            parts.append(f"severity {f['severity']}")
-        if f.get("medication"):
-            parts.append(f"meds {f['medication']}=Y")
-        parts.append(f"symptoms {', '.join(n.tags) if n.tags else 'none'}")
-        lines.append(" | ".join(parts))
+    for i, day in enumerate(days, start=1):
+        lines.append(_render_day(i, by_day[day]))
 
     lines.append("summary")
     return "\n".join(lines)
+
+
+def _med_name(note):
+    """Medication display name: the 'medication' template field, else the title."""
+    f = note.fields or {}
+    return (f.get("medication") or note.title or "").strip().lower()
+
+
+def _render_day(day_no, day_notes):
+    """One 'day NN | ...' row in the token order the model was trained on."""
+    vitals, symptoms, meds = {}, [], []
+
+    for n in day_notes:
+        f = n.fields or {}
+        if n.note_type == HealthNote.Type.VITALS:
+            # Model keys: bp_am, hr, spo2, temp. Keep the last value logged that day.
+            if f.get("blood_pressure"):
+                vitals["bp_am"] = str(f["blood_pressure"]).strip()
+            if f.get("heart_rate"):
+                vitals["hr"] = _int_str(f["heart_rate"])
+            if f.get("spo2"):
+                vitals["spo2"] = _int_str(f["spo2"])
+            if f.get("temperature"):
+                vitals["temp"] = str(f["temperature"]).strip()
+        elif n.note_type == HealthNote.Type.SYMPTOM:
+            label = (n.title or "symptom").strip().lower()
+            if f.get("severity"):
+                label += f" ({str(f['severity']).strip()})"
+            symptoms.append(label)
+        elif n.note_type == HealthNote.Type.MEDICATION:
+            name = _med_name(n)
+            if name:
+                meds.append(f"{name}=Y")
+
+    parts = [f"day {day_no:02d}"]
+    for key in ("bp_am", "hr", "spo2", "temp"):
+        if vitals.get(key):
+            parts.append(f"{key} {vitals[key]}")
+    parts.append(f"symptoms {', '.join(symptoms) if symptoms else 'none'}")
+    if meds:
+        parts.append("meds " + " ".join(meds))
+    return " | ".join(parts)
+
+
+def _int_str(value):
+    """'74', '74.0', ' 74 bpm' -> '74'; anything unparsable is passed through stripped."""
+    m = re.search(r"\d+", str(value))
+    return m.group(0) if m else str(value).strip()
 
 
 @api_view(["GET"])
