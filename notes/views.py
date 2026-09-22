@@ -156,8 +156,12 @@ def _render_day(day_no, day_notes):
                 vitals["spo2"] = _int_str(f["spo2"])
             if f.get("temperature"):
                 vitals["temp"] = str(f["temperature"]).strip()
+            if f.get("blood_glucose"):
+                # Model key 'glucose' is mmol/L, which is also the entry unit in the app.
+                vitals["glucose"] = str(f["blood_glucose"]).strip()
         elif n.note_type == HealthNote.Type.SYMPTOM:
-            label = (n.title or "symptom").strip().lower()
+            # Prefer the new 'main_symptom' field; fall back to the title for older notes.
+            label = (f.get("main_symptom") or n.title or "symptom").strip().lower()
             if f.get("severity"):
                 label += f" ({str(f['severity']).strip()})"
             symptoms.append(label)
@@ -167,7 +171,7 @@ def _render_day(day_no, day_notes):
                 meds.append(f"{name}=Y")
 
     parts = [f"day {day_no:02d}"]
-    for key in ("bp_am", "hr", "spo2", "temp"):
+    for key in ("bp_am", "hr", "spo2", "temp", "glucose"):
         if vitals.get(key):
             parts.append(f"{key} {vitals[key]}")
     parts.append(f"symptoms {', '.join(symptoms) if symptoms else 'none'}")

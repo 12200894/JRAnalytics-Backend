@@ -2,11 +2,17 @@ from rest_framework import serializers
 
 from .models import AISummary, Attachment, HealthNote
 
-# Required fields per note template. Free-form notes have none.
+# Allowed fields per note template. Free-form notes have none.
+#
+# Client feedback (meeting of 16 Sept 2026):
+#   vitals      + blood_glucose (entered in mmol/L; the app shows mg/dL alongside)
+#   symptom     + main_symptom, allergies. 'severity' is no longer shown in the app
+#                 but stays accepted so existing notes can still be edited.
+#   medication  + time (a specific clock time alongside the frequency)
 TEMPLATE_FIELDS = {
-    HealthNote.Type.VITALS: ["heart_rate", "blood_pressure", "spo2", "temperature"],
-    HealthNote.Type.SYMPTOM: ["severity", "duration", "triggers"],
-    HealthNote.Type.MEDICATION: ["medication", "dose", "frequency"],
+    HealthNote.Type.VITALS: ["heart_rate", "blood_pressure", "spo2", "temperature", "blood_glucose"],
+    HealthNote.Type.SYMPTOM: ["main_symptom", "duration", "triggers", "allergies", "severity"],
+    HealthNote.Type.MEDICATION: ["medication", "dose", "frequency", "time"],
     HealthNote.Type.APPOINTMENT: ["clinician", "date", "outcome"],
     HealthNote.Type.FREE: [],
 }
